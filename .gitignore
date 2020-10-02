@@ -2,3 +2,4 @@
 .vscode/
 *.pkl
 *.csv
+.python_version
