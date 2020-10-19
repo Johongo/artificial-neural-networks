@@ -3,5 +3,5 @@
 *.pkl
 *.csv
 .python_version
-**/network1/**
-**/network2/**
+**/network1/
+**/network2/
