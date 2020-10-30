@@ -1,7 +1,14 @@
+# Development
+.python_version
 .DS_Store
 .vscode/
+
+# Data
 *.pkl
 *.csv
-.python_version
+
+# Saved models
 **/network1/
 **/network2/
+**/autoencoder1/
+**/autoencoder2/
