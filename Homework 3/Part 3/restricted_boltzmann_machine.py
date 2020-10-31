@@ -150,11 +150,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-'''frequency2 = output2./ nSample;
-numberOfPattern = 14;
-
-px = 1 / numberOfPattern;
-pb = frequency2;
-t = px*log(px ./ pb)
-'''
