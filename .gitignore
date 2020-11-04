@@ -7,8 +7,9 @@
 *.pkl
 *.csv
 
-# Saved models
+# Saved models/data
 **/network1/
 **/network2/
 **/autoencoder1/
 **/autoencoder2/
+kld_*

@@ -1,4 +1,6 @@
 import numpy as np
+from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 # Patterns
 PATTERNS = np.array([[-1, -1, -1, -1, -1, -1, -1, -1, -1],
@@ -19,10 +21,10 @@ PATTERNS = np.array([[-1, -1, -1, -1, -1, -1, -1, -1, -1],
 # Network parameters
 N_PATTERNS = 14
 N_VISIBLE = 9
-N_HIDDEN = 8
+N_HIDDEN = 4
 
 # Training parameters
-N_EPOCHS = 50
+N_EPOCHS = 100
 N_SAMPLES = 10000
 N_TIMES = 100
 N_TRANSIENT = 20
@@ -63,29 +65,35 @@ class Boltzmann:
     def train(self, patterns=PATTERNS, n_patterns=N_PATTERNS, n_epochs=N_EPOCHS, n_times=N_TIMES):
         divergences = np.zeros(n_epochs)
 
-        for index in range(n_epochs):
+        for i in tqdm(range(n_epochs)):
+            dw = np.zeros(self.weights.shape)
+            dtv = np.zeros(self.n_visible)
+            dth = np.zeros(self.n_hidden)
 
-            # Choose random pattern
-            pattern_index = np.random.randint(n_patterns)
-            pattern = patterns[pattern_index]
+            np.random.shuffle(patterns)
 
-            # Initialize neurons
-            v0, h0 = pattern, self.update_hidden(pattern)
+            for j in range(n_patterns):
+                # Choose random pattern
+                pattern = patterns[j]
 
-            # Iterate for contrastive divergence
-            vk, hk = v0, h0
-            for _ in range(n_times):
-                vk = self.update_visible(hk)
-                hk = self.update_hidden(vk)
+                # Initialize neurons
+                v0, h0 = pattern, self.update_hidden(pattern)
 
-            # Calculate local fields
-            bh0 = self.weights @ v0 - self.h_bias
-            bhk = self.weights @ vk - self.h_bias
+                # Iterate for contrastive divergence
+                vk, hk = v0, h0
+                for _ in range(n_times):
+                    vk = self.update_visible(hk)
+                    hk = self.update_hidden(vk)
 
-            # Calculate changes
-            dw = np.outer(np.tanh(bh0), v0) - np.outer(np.tanh(bhk), vk)
-            dtv = v0 - vk
-            dth = np.tanh(bh0) - np.tanh(bhk)
+                # Calculate local fields
+                bh0 = self.weights @ v0 - self.h_bias
+                bhk = self.weights @ vk - self.h_bias
+
+                # Calculate changes
+                dw = dw + np.outer(np.tanh(bh0), v0) - \
+                    np.outer(np.tanh(bhk), vk)
+                dtv = dtv + v0 - vk
+                dth = dth + np.tanh(bh0) - np.tanh(bhk)
 
             # Update
             self.weights = self.weights + dw * self.learning_rate
@@ -93,11 +101,26 @@ class Boltzmann:
             self.h_bias = self.h_bias - dth * self.learning_rate
 
             # Kullback-Leibler divergence
-            distribution = self.approximate_distribution()
-            divergence = self.kullback_leibler(distribution)
-            divergences[index] = divergence
+            p_b = self.approximate_distribution()
+            divergence = self.kullback_leibler(p_b)
+            divergences[i] = divergence
+            # print(divergence)
 
         return divergences
+
+    def approximate_distribution(self, n_patterns=N_PATTERNS, n_samples=N_SAMPLES):
+        outputs = np.zeros(n_patterns)
+        for _ in range(n_samples):
+            pattern = self.get_random_pattern()
+            output = self.run(pattern)
+            index = self.get_index(output)
+            if index is not None:
+                outputs[index] += 1
+        return outputs / n_samples
+
+    def kullback_leibler(self, p_b, n_patterns=N_PATTERNS):
+        p_data = 1 / n_patterns
+        return np.sum(p_data * np.log(p_data / p_b))
 
     def run(self, pattern, n_transient=N_TRANSIENT):
 
@@ -137,29 +160,43 @@ class Boltzmann:
     def sigmoid(self, b):
         return 1 / (1 + np.exp(-2 * b))
 
-    def kullback_leibler(self, distribution, n_patterns=N_PATTERNS):
-        result = 0
-        p_data = 1 / n_patterns
-        for pb in distribution:
-            temp = p_data * np.log(p_data / pb)
-            result += temp
-        return result
 
-    def approximate_distribution(self, n_patterns=N_PATTERNS, n_samples=N_SAMPLES):
-        outputs = np.zeros(n_patterns)
-        for _ in range(n_samples):
-            pattern = self.get_random_pattern()
-            output = self.run(pattern)
-            index = self.get_index(output)
-            if index is not None:
-                outputs[index] += 1
-        return outputs / n_samples
+def moving_average(a, n=3):
+    ret = np.cumsum(a, dtype=float)
+    ret[n:] = ret[n:] - ret[:-n]
+    return ret[n - 1:] / n
 
 
 def main():
+    # Train the network
     boltzmann = Boltzmann()
     divergences = boltzmann.train()
-    # plot divergences here
+    plt.plot(divergences)
+    # np.savetxt(f"kld_{N_HIDDEN}", divergences, delimiter=",")
+
+    # Plot the performance
+    '''
+    kld2 = np.genfromtxt('kld_2', delimiter=',')
+    kld4 = np.genfromtxt('kld_4', delimiter=',')
+    kld8 = np.genfromtxt('kld_8', delimiter=',')
+    kld16 = np.genfromtxt('kld_16', delimiter=',')
+
+    plt.plot(moving_average(kld2, 1), color="tab:blue", alpha=0.2)
+    plt.plot(moving_average(kld4, 1), color="tab:orange", alpha=0.2)
+    plt.plot(moving_average(kld8, 1), color="tab:green", alpha=0.2)
+    plt.plot(moving_average(kld16, 1), color="tab:red", alpha=0.2)
+
+    plt.plot(moving_average(kld2, 5), color="tab:blue")
+    plt.plot(moving_average(kld4, 5), color="tab:orange")
+    plt.plot(moving_average(kld8, 5), color="tab:green")
+    plt.plot(moving_average(kld16, 5), color="tab:red")
+
+    plt.title("Kullback-Leibler divergence")
+    plt.xlabel("Epochs")
+    plt.ylabel("$D_\mathregular{KL}$")
+    plt.legend(["M = 2", "M = 4", "M = 8", "M = 16"])
+    plt.show()
+    '''
 
 
 if __name__ == '__main__':
