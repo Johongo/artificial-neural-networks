@@ -1,6 +1,5 @@
-import numpy as np
-from tqdm import tqdm
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Patterns
 PATTERNS = np.array([[-1, -1, -1, -1, -1, -1, -1, -1, -1],
@@ -65,7 +64,7 @@ class Boltzmann:
     def train(self, patterns=PATTERNS, n_patterns=N_PATTERNS, n_epochs=N_EPOCHS, n_times=N_TIMES):
         divergences = np.zeros(n_epochs)
 
-        for i in tqdm(range(n_epochs)):
+        for i in range(n_epochs):
             dw = np.zeros(self.weights.shape)
             dtv = np.zeros(self.n_visible)
             dth = np.zeros(self.n_hidden)
@@ -73,38 +72,30 @@ class Boltzmann:
             np.random.shuffle(patterns)
 
             for j in range(n_patterns):
-                # Choose random pattern
                 pattern = patterns[j]
 
-                # Initialize neurons
                 v0, h0 = pattern, self.update_hidden(pattern)
 
-                # Iterate for contrastive divergence
                 vk, hk = v0, h0
                 for _ in range(n_times):
                     vk = self.update_visible(hk)
                     hk = self.update_hidden(vk)
 
-                # Calculate local fields
                 bh0 = self.weights @ v0 - self.h_bias
                 bhk = self.weights @ vk - self.h_bias
 
-                # Calculate changes
                 dw = dw + np.outer(np.tanh(bh0), v0) - \
                     np.outer(np.tanh(bhk), vk)
                 dtv = dtv + v0 - vk
                 dth = dth + np.tanh(bh0) - np.tanh(bhk)
 
-            # Update
             self.weights = self.weights + dw * self.learning_rate
             self.v_bias = self.v_bias - dtv * self.learning_rate
             self.h_bias = self.h_bias - dth * self.learning_rate
 
-            # Kullback-Leibler divergence
             p_b = self.approximate_distribution()
             divergence = self.kullback_leibler(p_b)
             divergences[i] = divergence
-            # print(divergence)
 
         return divergences
 
@@ -123,11 +114,8 @@ class Boltzmann:
         return np.sum(p_data * np.log(p_data / p_b))
 
     def run(self, pattern, n_transient=N_TRANSIENT):
-
-        # Initialize neurons
         v0, h0 = pattern, self.update_hidden(pattern)
 
-        # Iterate beyond transient
         vk, hk = v0, h0
         for _ in range(n_transient):
             vk = self.update_visible(hk)
@@ -168,35 +156,9 @@ def moving_average(a, n=3):
 
 
 def main():
-    # Train the network
     boltzmann = Boltzmann()
     divergences = boltzmann.train()
     plt.plot(divergences)
-    # np.savetxt(f"kld_{N_HIDDEN}", divergences, delimiter=",")
-
-    # Plot the performance
-    '''
-    kld2 = np.genfromtxt('kld_2', delimiter=',')
-    kld4 = np.genfromtxt('kld_4', delimiter=',')
-    kld8 = np.genfromtxt('kld_8', delimiter=',')
-    kld16 = np.genfromtxt('kld_16', delimiter=',')
-
-    plt.plot(moving_average(kld2, 1), color="tab:blue", alpha=0.2)
-    plt.plot(moving_average(kld4, 1), color="tab:orange", alpha=0.2)
-    plt.plot(moving_average(kld8, 1), color="tab:green", alpha=0.2)
-    plt.plot(moving_average(kld16, 1), color="tab:red", alpha=0.2)
-
-    plt.plot(moving_average(kld2, 5), color="tab:blue")
-    plt.plot(moving_average(kld4, 5), color="tab:orange")
-    plt.plot(moving_average(kld8, 5), color="tab:green")
-    plt.plot(moving_average(kld16, 5), color="tab:red")
-
-    plt.title("Kullback-Leibler divergence")
-    plt.xlabel("Epochs")
-    plt.ylabel("$D_\mathregular{KL}$")
-    plt.legend(["M = 2", "M = 4", "M = 8", "M = 16"])
-    plt.show()
-    '''
 
 
 if __name__ == '__main__':
